@@ -877,3 +877,95 @@ body::before {
     will-change: auto;
   }
 }
+
+/* ============================================================
+   HERO UPGRADE (H7 — room details)
+   ============================================================ */
+
+/* 1. Hero grain boost — 3.5% base, up to 5% while the hero is in view.
+   --grain-boost is written by RoomDetails (1 at top → 0 by 50% vh). */
+.bg-grain {
+  opacity: calc(0.035 + 0.015 * var(--grain-boost, 0));
+}
+
+/* 2. Scroll cue glow — brightens as the light draws near. */
+.scroll-cue .bar {
+  background: linear-gradient(
+    to bottom,
+    rgba(232, 176, 75, calc(0.6 + 0.4 * var(--cue-glow, 0))),
+    transparent
+  );
+  box-shadow: 0 0 calc(4px + 10px * var(--cue-glow, 0))
+    rgba(232, 176, 75, calc(0.45 * var(--cue-glow, 0)));
+}
+
+/* 3. CTA distance shadows — warm halo grows as light approaches.
+   --btn-glow is written per-button by RoomDetails (0..1). */
+.hero-ctas .btn {
+  transition:
+    box-shadow .4s var(--ease-out-expo),
+    border-color .3s var(--ease-out-expo),
+    background .3s var(--ease-out-expo),
+    color .3s var(--ease-out-expo),
+    transform .3s var(--ease-out-expo);
+}
+.hero-ctas .btn-solid {
+  box-shadow: 0 0 28px -6px
+    rgba(232, 176, 75, calc(0.10 + 0.60 * var(--btn-glow, 0)));
+}
+.hero-ctas .btn-solid:hover {
+  box-shadow:
+    0 8px 30px -8px rgba(232, 176, 75, 0.5),
+    0 0 28px -6px rgba(232, 176, 75, calc(0.10 + 0.60 * var(--btn-glow, 0)));
+}
+.hero-ctas .btn-ghost {
+  border-color: rgba(232, 176, 75, calc(0.12 + 0.38 * var(--btn-glow, 0)));
+  box-shadow: 0 0 24px -6px
+    rgba(232, 176, 75, calc(0.30 * var(--btn-glow, 0)));
+}
+.hero-ctas .btn-ghost:hover {
+  border-color: rgba(232, 176, 75, 0.55);
+  box-shadow:
+    0 0 24px -6px rgba(232, 176, 75, calc(0.30 * var(--btn-glow, 0))),
+    0 8px 30px -10px rgba(232, 176, 75, 0.25);
+}
+
+/* 4. Proof hairline — cool base + warm pool that tracks the light.
+   --proof-lx is written by RoomDetails in px, relative to the strip. */
+.proof {
+  border-top: none;
+  position: relative;
+  padding-top: 2rem;
+}
+.proof::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.proof::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: radial-gradient(
+    280px circle at var(--proof-lx, 0px) 50%,
+    rgba(232, 176, 75, 0.55) 0%,
+    rgba(232, 176, 75, 0.20) 40%,
+    transparent 72%
+  );
+  pointer-events: none;
+}
+
+/* Reduced motion — kill the glow drivers. */
+@media (prefers-reduced-motion: reduce) {
+  .bg-grain { opacity: 0.035; }
+  .scroll-cue .bar {
+    background: linear-gradient(to bottom, rgba(232, 176, 75, 0.6), transparent);
+    box-shadow: none;
+  }
+  .hero-ctas .btn-solid { box-shadow: none; }
+  .hero-ctas .btn-ghost { box-shadow: none; }
+  .proof::after { display: none; }
+}

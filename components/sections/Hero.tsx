@@ -16,11 +16,77 @@ const line = (d: number) => ({
   transition: { duration: 1.1, ease: EASE, delay: d },
 });
 
+/**
+ * H7 — Room details.
+ * Runs a low-frequency rAF (30fps) that reads lightState and
+ * writes local CSS variables to the scroll cue, the CTAs, the
+ * proof strip, and the body (for the hero grain boost). All work
+ * is off the critical path; nothing here touches React state.
+ */
+function RoomDetails() {
+  useEffect(() => {
+    let rafId = 0;
+    let frame = 0;
+
+    const tick = () => {
+      rafId = requestAnimationFrame(tick);
+      frame++;
+      if (frame % 2 !== 0) return;
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const lightX = lightState.x * w;
+      const lightY = lightState.y * h;
+
+      // 1. hero grain boost — 1 at top, 0 by 50% of viewport scrolled
+      const scrollRatio = Math.min(1, window.scrollY / (h * 0.5));
+      document.documentElement.style.setProperty(
+        "--grain-boost",
+        String(1 - scrollRatio)
+      );
+
+      // 2. scroll cue glow — brighter when light is near
+      const cue = document.querySelector<HTMLElement>(".scroll-cue");
+      if (cue) {
+        const r = cue.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        const d = Math.hypot(cx - lightX, cy - lightY);
+        const glow = Math.max(0, 1 - d / 200);
+        cue.style.setProperty("--cue-glow", glow.toFixed(3));
+      }
+
+      // 3. CTA shadows — warm shadow grows as light approaches
+      const buttons = document.querySelectorAll<HTMLElement>(".hero-ctas .btn");
+      buttons.forEach((b) => {
+        const r = b.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        const d = Math.hypot(cx - lightX, cy - lightY);
+        const glow = Math.max(0, 1 - d / 300);
+        b.style.setProperty("--btn-glow", glow.toFixed(3));
+      });
+
+      // 4. proof hairline — warm pool tracks the light's x
+      const proof = document.querySelector<HTMLElement>(".proof");
+      if (proof) {
+        const r = proof.getBoundingClientRect();
+        proof.style.setProperty("--proof-lx", (lightX - r.left).toFixed(1) + "px");
+      }
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
+  return null;
+}
+
 export function Hero() {
   const periodRef = useRef<HTMLSpanElement>(null);
   const [bloomPos, setBloomPos] = useState<{ x: number; y: number } | null>(null);
 
-  // ── H5: front-layer parallax ──
+  // H5: front-layer parallax
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
   const smx = useSpring(pointerX, { stiffness: 120, damping: 30 });
@@ -39,7 +105,7 @@ export function Hero() {
     return () => window.removeEventListener("pointermove", onMove);
   }, [pointerX, pointerY]);
 
-  // ── bloom ring position ──
+  // bloom ring position
   useEffect(() => {
     const measure = () => {
       const el = periodRef.current;
@@ -59,7 +125,7 @@ export function Hero() {
     };
   }, []);
 
-  // ── H2 + H6: intensity state machine ──
+  // H2 + H6: intensity state machine
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
@@ -111,6 +177,7 @@ export function Hero() {
 
   return (
     <section className="hero wrap" id="hero" aria-labelledby="hero-title">
+      <RoomDetails />
       <HeroFog />
       <BloomCanvas />
 

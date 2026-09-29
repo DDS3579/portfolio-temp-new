@@ -46,16 +46,15 @@ void main() {
   p.x *= aspect;
   vec2 L = vec2(u_light.x * aspect, u_light.y);
 
-  // slow breathing (6s period), only visible once I > 0
   float breath = 1.0 + 0.05 * sin(u_time * 1.047);
   float I = u_intensity * breath;
 
-  // cool fbm fog — visible but cold
+  // cool fbm fog
   vec2 q = p * 1.5 + vec2(u_time * 0.015, u_time * 0.010);
   float fog = fbm(q);
   fog = fog * 0.7 + 0.3 * fbm(p * 3.0 - u_time * 0.02);
 
-  // god rays toward light
+  // god rays
   vec2 dir = L - p;
   float dist = length(dir);
   dir /= max(dist, 0.0001);
@@ -68,17 +67,18 @@ void main() {
   rays /= 18.0;
   rays *= exp(-dist * 1.15);
 
-  // hot core + wide glow
   float dL = distance(p, L);
   float hot = exp(-dL * dL * 22.0);
   float wide = exp(-dL * 3.2);
 
-  // ground pool — soft amber floor wash beneath the light
   vec2 poolP = vec2((p.x - L.x) / (aspect * 0.55), (p.y - 0.22) / 0.30);
   float pool = exp(-dot(poolP, poolP) * 2.2);
 
-  // implied horizon line, drifting slowly
-  float horizonY = 0.30 + sin(u_time * 0.03) * 0.004;
+  // H7: horizon with drifting wave
+  float horizonPhase = u_time * 0.15;
+  float horizonY = 0.30
+    + sin(p.x * 0.8 + horizonPhase) * 0.006
+    + sin(u_time * 0.03) * 0.004;
   float horizon = exp(-pow((p.y - horizonY) / 0.006, 2.0));
 
   vec3 coolFog = vec3(0.14, 0.20, 0.32) * 0.22;
