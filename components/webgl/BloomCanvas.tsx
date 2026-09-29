@@ -4,10 +4,9 @@ import { useEffect, useRef } from "react";
 import { lightState } from "@/lib/light-state";
 
 /**
- * Persistent bloom around the light source. Sits inside the hero,
- * draws exactly one radial at lightState.x/y (which follows the
- * drifting period node), amplitude from lightState.intensity.
- * Disabled under reduced motion.
+ * Persistent bloom around the light source. Sits inside the hero.
+ * Under reduced motion, the CSS static halo behind the period
+ * (see .hero-period-halo) replaces this entirely, so we bail.
  */
 export function BloomCanvas() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -49,7 +48,6 @@ export function BloomCanvas() {
       const x = lightState.x * W;
       const y = lightState.y * H;
 
-      // breathing matches the shader's 6s cycle, ±5%
       const breath = 0.85 + 0.15 * Math.sin((t / 1000) * 1.047);
       const alpha = 0.42 * intensity * breath;
       const R = 220 + 40 * breath;

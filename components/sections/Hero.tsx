@@ -16,15 +16,11 @@ const line = (d: number) => ({
   transition: { duration: 1.1, ease: EASE, delay: d },
 });
 
-/**
- * H7 — Room details.
- * Runs a low-frequency rAF (30fps) that reads lightState and
- * writes local CSS variables to the scroll cue, the CTAs, the
- * proof strip, and the body (for the hero grain boost). All work
- * is off the critical path; nothing here touches React state.
- */
 function RoomDetails() {
   useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+
     let rafId = 0;
     let frame = 0;
 
@@ -38,14 +34,12 @@ function RoomDetails() {
       const lightX = lightState.x * w;
       const lightY = lightState.y * h;
 
-      // 1. hero grain boost — 1 at top, 0 by 50% of viewport scrolled
       const scrollRatio = Math.min(1, window.scrollY / (h * 0.5));
       document.documentElement.style.setProperty(
         "--grain-boost",
         String(1 - scrollRatio)
       );
 
-      // 2. scroll cue glow — brighter when light is near
       const cue = document.querySelector<HTMLElement>(".scroll-cue");
       if (cue) {
         const r = cue.getBoundingClientRect();
@@ -56,7 +50,6 @@ function RoomDetails() {
         cue.style.setProperty("--cue-glow", glow.toFixed(3));
       }
 
-      // 3. CTA shadows — warm shadow grows as light approaches
       const buttons = document.querySelectorAll<HTMLElement>(".hero-ctas .btn");
       buttons.forEach((b) => {
         const r = b.getBoundingClientRect();
@@ -67,7 +60,6 @@ function RoomDetails() {
         b.style.setProperty("--btn-glow", glow.toFixed(3));
       });
 
-      // 4. proof hairline — warm pool tracks the light's x
       const proof = document.querySelector<HTMLElement>(".proof");
       if (proof) {
         const r = proof.getBoundingClientRect();
@@ -85,8 +77,13 @@ function RoomDetails() {
 export function Hero() {
   const periodRef = useRef<HTMLSpanElement>(null);
   const [bloomPos, setBloomPos] = useState<{ x: number; y: number } | null>(null);
+  const [reduce, setReduce] = useState(false);
 
-  // H5: front-layer parallax
+  useEffect(() => {
+    setReduce(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }, []);
+
+  // H5: front-layer parallax (skipped under reduce)
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
   const smx = useSpring(pointerX, { stiffness: 120, damping: 30 });
@@ -95,7 +92,6 @@ export function Hero() {
   const frontY = useTransform(smy, (v) => v * -6);
 
   useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) return;
     const onMove = (e: PointerEvent) => {
       pointerX.set((e.clientX / window.innerWidth) * 2 - 1);
@@ -103,10 +99,11 @@ export function Hero() {
     };
     window.addEventListener("pointermove", onMove, { passive: true });
     return () => window.removeEventListener("pointermove", onMove);
-  }, [pointerX, pointerY]);
+  }, [pointerX, pointerY, reduce]);
 
-  // bloom ring position
+  // bloom ring position (skipped under reduce)
   useEffect(() => {
+    if (reduce) return;
     const measure = () => {
       const el = periodRef.current;
       if (!el) return;
@@ -123,13 +120,13 @@ export function Hero() {
       ro.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, []);
+  }, [reduce]);
 
-  // H2 + H6: intensity state machine
+  // H2 + H6: intensity state machine (skipped under reduce)
   useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
-      lightState.intensity = 1;
+      // matches the static fog frame's intensity
+      lightState.intensity = 0.85;
       return;
     }
 
@@ -173,15 +170,15 @@ export function Hero() {
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, []);
+  }, [reduce]);
 
   return (
     <section className="hero wrap" id="hero" aria-labelledby="hero-title">
       <RoomDetails />
       <HeroFog />
-      <BloomCanvas />
+      {!reduce && <BloomCanvas />}
 
-      {bloomPos && (
+      {!reduce && bloomPos && (
         <motion.div
           className="bloom-ring"
           style={{ left: bloomPos.x, top: bloomPos.y }}
@@ -202,12 +199,16 @@ export function Hero() {
         />
       )}
 
-      <motion.div className="hero-front" style={{ x: frontX, y: frontY }}>
+      <motion.div className="hero-front" style={reduce ? undefined : { x: frontX, y: frontY }}>
         <motion.p
           className="hero-label"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: EASE, delay: 1.6 }}
+          transition={
+            reduce
+              ? { duration: 0.3, delay: 0.1 }
+              : { duration: 0.7, ease: EASE, delay: 1.6 }
+          }
         >
           <span className="pulse" aria-hidden="true" />
           {site.role}
@@ -215,25 +216,57 @@ export function Hero() {
 
         <h1 className="hero-title" id="hero-title">
           <span className="hero-line">
-            <motion.span style={{ display: "inline-block" }} {...line(0.3)}>
+            <motion.span
+              style={{ display: "inline-block" }}
+              initial={reduce ? { opacity: 0 } : { y: "115%", filter: "blur(10px)", scale: 0.96 }}
+              animate={reduce ? { opacity: 1 } : { y: "0%", filter: "blur(0px)", scale: 1 }}
+              transition={
+                reduce
+                  ? { duration: 0.4, delay: 0.15 }
+                  : { duration: 1.1, ease: EASE, delay: 0.3 }
+              }
+            >
               I build businesses
             </motion.span>
           </span>
           <span className="hero-line">
-            <motion.span style={{ display: "inline-block" }} {...line(0.44)}>
+            <motion.span
+              style={{ display: "inline-block" }}
+              initial={reduce ? { opacity: 0 } : { y: "115%", filter: "blur(10px)", scale: 0.96 }}
+              animate={reduce ? { opacity: 1 } : { y: "0%", filter: "blur(0px)", scale: 1 }}
+              transition={
+                reduce
+                  ? { duration: 0.4, delay: 0.25 }
+                  : { duration: 1.1, ease: EASE, delay: 0.44 }
+              }
+            >
               from scratch to
             </motion.span>
           </span>
           <span className="hero-line">
-            <motion.span style={{ display: "inline-block" }} {...line(0.58)}>
+            <motion.span
+              style={{ display: "inline-block" }}
+              initial={reduce ? { opacity: 0 } : { y: "115%", filter: "blur(10px)", scale: 0.96 }}
+              animate={reduce ? { opacity: 1 } : { y: "0%", filter: "blur(0px)", scale: 1 }}
+              transition={
+                reduce
+                  ? { duration: 0.4, delay: 0.35 }
+                  : { duration: 1.1, ease: EASE, delay: 0.58 }
+              }
+            >
               conglomerates
+              {reduce && <span className="hero-period-halo" aria-hidden="true" />}
               <motion.span
                 ref={periodRef}
                 id="hero-period"
                 className="hero-period"
-                initial={{ scale: 0.35, opacity: 0, filter: "blur(8px)" }}
-                animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-                transition={{ duration: 0.55, delay: 1.3, ease: IGNITE_EASE }}
+                initial={reduce ? { opacity: 0 } : { scale: 0.35, opacity: 0, filter: "blur(8px)" }}
+                animate={reduce ? { opacity: 1 } : { scale: 1, opacity: 1, filter: "blur(0px)" }}
+                transition={
+                  reduce
+                    ? { duration: 0.4, delay: 0.45 }
+                    : { duration: 0.55, delay: 1.3, ease: IGNITE_EASE }
+                }
               >
                 .
               </motion.span>
@@ -243,18 +276,26 @@ export function Hero() {
 
         <motion.p
           className="hero-sub"
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: reduce ? 0 : 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: EASE, delay: 1.6 }}
+          transition={
+            reduce
+              ? { duration: 0.4, delay: 0.5 }
+              : { duration: 0.7, ease: EASE, delay: 1.6 }
+          }
         >
           Crafting products, systems, and digital experiences from first idea to scalable reality.
         </motion.p>
 
         <motion.div
           className="hero-ctas"
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: reduce ? 0 : 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: EASE, delay: 1.9 }}
+          transition={
+            reduce
+              ? { duration: 0.4, delay: 0.6 }
+              : { duration: 0.8, ease: EASE, delay: 1.9 }
+          }
         >
           <a href="#work" className="btn btn-solid">
             View Work <span className="arrow" aria-hidden="true">→</span>
@@ -266,9 +307,13 @@ export function Hero() {
 
         <motion.div
           className="proof"
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: reduce ? 0 : 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: EASE, delay: 1.9 }}
+          transition={
+            reduce
+              ? { duration: 0.4, delay: 0.7 }
+              : { duration: 0.8, ease: EASE, delay: 1.9 }
+          }
         >
           <span><span className="k">Digira:</span> 3 branches</span>
           <span><span className="k">NSS Clubs:</span> 56+ members</span>
@@ -282,7 +327,7 @@ export function Hero() {
         aria-hidden="true"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.8, delay: 2.4 }}
+        transition={reduce ? { duration: 0.4, delay: 0.8 } : { duration: 0.8, delay: 2.4 }}
       >
         <span>Scroll</span>
         <span className="bar" />

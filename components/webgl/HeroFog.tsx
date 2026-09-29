@@ -49,12 +49,10 @@ void main() {
   float breath = 1.0 + 0.05 * sin(u_time * 1.047);
   float I = u_intensity * breath;
 
-  // cool fbm fog
   vec2 q = p * 1.5 + vec2(u_time * 0.015, u_time * 0.010);
   float fog = fbm(q);
   fog = fog * 0.7 + 0.3 * fbm(p * 3.0 - u_time * 0.02);
 
-  // god rays
   vec2 dir = L - p;
   float dist = length(dir);
   dir /= max(dist, 0.0001);
@@ -74,7 +72,6 @@ void main() {
   vec2 poolP = vec2((p.x - L.x) / (aspect * 0.55), (p.y - 0.22) / 0.30);
   float pool = exp(-dot(poolP, poolP) * 2.2);
 
-  // H7: horizon with drifting wave
   float horizonPhase = u_time * 0.15;
   float horizonY = 0.30
     + sin(p.x * 0.8 + horizonPhase) * 0.006
@@ -124,7 +121,9 @@ export function HeroFog() {
     const wide = window.innerWidth >= 1024;
     const saveData = (navigator as unknown as { connection?: { saveData?: boolean } })
       .connection?.saveData;
-    if (reduce || coarse || !wide || saveData) return;
+
+    // Hard no — the shader is not built at all on these paths.
+    if (!wide || saveData) return;
 
     const gl = canvas.getContext("webgl2", {
       alpha: true,
@@ -157,10 +156,9 @@ export function HeroFog() {
     const uTime = gl.getUniformLocation(prog, "u_time");
     const uIntensity = gl.getUniformLocation(prog, "u_intensity");
 
-    let rafId = 0;
-    let lastT = performance.now();
-    let scale = 0.6;
+    // H8: tighten the DPR cap slightly so the static frame matches the live frame.
     const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+    let scale = 0.6;
 
     const resize = () => {
       const w = Math.floor(window.innerWidth * scale * DPR);
@@ -173,6 +171,29 @@ export function HeroFog() {
       }
     };
     resize();
+
+    // ── static frame path (reduced motion or coarse pointer) ──
+    const renderStaticFrame = () => {
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform2f(uRes, canvas.width, canvas.height);
+      gl.uniform2f(uLight, 0.5, 0.42);
+      gl.uniform1f(uTime, 12.5); // fixed time → deterministic fog shape
+      gl.uniform1f(uIntensity, 0.85);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    };
+
+    if (reduce || coarse) {
+      renderStaticFrame();
+      const onResizeStatic = () => { resize(); renderStaticFrame(); };
+      window.addEventListener("resize", onResizeStatic);
+      return () => window.removeEventListener("resize", onResizeStatic);
+    }
+
+    // ── live path ──
+    let rafId = 0;
+    let lastT = performance.now();
     window.addEventListener("resize", resize);
 
     const frameTimes: number[] = [];
@@ -192,7 +213,8 @@ export function HeroFog() {
       if (frameTimes.length > 30) {
         const avg = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
         frameTimes.length = 0;
-        if (avg > 24) {
+        // H8: tightened 24ms → 20ms.
+        if (avg > 20) {
           if (degraded === 0) { degraded = 1; scale = 0.4; resize(); }
           else if (degraded === 1) { degraded = 2; }
         }
@@ -203,17 +225,13 @@ export function HeroFog() {
         return;
       }
 
-      const lightX = lightState.x;
-      const lightY = lightState.y;
-      const intensity = lightState.intensity;
-
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.uniform2f(uLight, lightX, 1 - lightY);
+      gl.uniform2f(uLight, lightState.x, 1 - lightState.y);
       gl.uniform1f(uTime, t / 1000);
-      gl.uniform1f(uIntensity, intensity);
+      gl.uniform1f(uIntensity, lightState.intensity);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     rafId = requestAnimationFrame(draw);
