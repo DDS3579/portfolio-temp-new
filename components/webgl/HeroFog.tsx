@@ -10,6 +10,7 @@ precision highp float;
 uniform vec2 u_res;
 uniform vec2 u_light;
 uniform float u_time;
+uniform float u_intensity;
 out vec4 fragColor;
 
 float hash(vec2 p) {
@@ -40,36 +41,59 @@ float fbm(vec2 p) {
 
 void main() {
   vec2 uv = gl_FragCoord.xy / u_res;
-  vec2 p = uv;
   float aspect = u_res.x / u_res.y;
+  vec2 p = uv;
   p.x *= aspect;
   vec2 L = vec2(u_light.x * aspect, u_light.y);
 
+  // slow breathing (6s period), only visible once I > 0
+  float breath = 1.0 + 0.05 * sin(u_time * 1.047);
+  float I = u_intensity * breath;
+
+  // cool fbm fog — visible but cold
   vec2 q = p * 1.5 + vec2(u_time * 0.015, u_time * 0.010);
   float fog = fbm(q);
   fog = fog * 0.7 + 0.3 * fbm(p * 3.0 - u_time * 0.02);
 
+  // god rays toward light
   vec2 dir = L - p;
   float dist = length(dir);
   dir /= max(dist, 0.0001);
   float rays = 0.0;
   vec2 sp = p;
-  for (int i = 0; i < 22; i++) {
+  for (int i = 0; i < 18; i++) {
     sp += dir * dist * 0.035;
     rays += fbm(sp * 2.6 + u_time * 0.04);
   }
-  rays /= 22.0;
-  rays *= exp(-dist * 1.7);
+  rays /= 18.0;
+  rays *= exp(-dist * 1.15);
 
-  vec3 coolFog = vec3(0.10, 0.16, 0.26) * 0.11;
+  // hot core + wide glow
+  float dL = distance(p, L);
+  float hot = exp(-dL * dL * 22.0);
+  float wide = exp(-dL * 3.2);
+
+  // ground pool — soft amber floor wash beneath the light
+  vec2 poolP = vec2((p.x - L.x) / (aspect * 0.55), (p.y - 0.22) / 0.30);
+  float pool = exp(-dot(poolP, poolP) * 2.2);
+
+  // implied horizon line, drifting slowly
+  float horizonY = 0.30 + sin(u_time * 0.03) * 0.004;
+  float horizon = exp(-pow((p.y - horizonY) / 0.006, 2.0));
+
+  vec3 coolFog = vec3(0.14, 0.20, 0.32) * 0.22;
   vec3 warm = vec3(1.0, 0.72, 0.35);
+  vec3 horizonCool = vec3(0.20, 0.32, 0.48) * 0.05;
 
   vec3 col = coolFog;
-  col += warm * rays * 0.32;
-  col += warm * 0.07 * exp(-distance(p, L) * 3.2);
+  col += warm * rays * 0.75 * I;
+  col += warm * wide * 0.22 * I;
+  col += vec3(1.0, 0.90, 0.72) * hot * 0.35 * I;
+  col += warm * pool * 0.06 * I;
+  col += horizonCool * horizon;
   col *= 0.55 + fog * 0.55;
 
-  float v = smoothstep(1.15, 0.25, length(p - vec2(aspect * 0.5, 0.5)));
+  float v = smoothstep(1.35, 0.15, length(p - vec2(aspect * 0.5, 0.5)));
   col *= v;
 
   fragColor = vec4(col, 1.0);
@@ -131,6 +155,7 @@ export function HeroFog() {
     const uRes = gl.getUniformLocation(prog, "u_res");
     const uLight = gl.getUniformLocation(prog, "u_light");
     const uTime = gl.getUniformLocation(prog, "u_time");
+    const uIntensity = gl.getUniformLocation(prog, "u_intensity");
 
     let rafId = 0;
     let lastT = performance.now();
@@ -178,9 +203,9 @@ export function HeroFog() {
         return;
       }
 
-      // Read light from shared module — no getComputedStyle in the hot path.
       const lightX = lightState.x;
       const lightY = lightState.y;
+      const intensity = lightState.intensity;
 
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clearColor(0, 0, 0, 0);
@@ -188,6 +213,7 @@ export function HeroFog() {
       gl.uniform2f(uRes, canvas.width, canvas.height);
       gl.uniform2f(uLight, lightX, 1 - lightY);
       gl.uniform1f(uTime, t / 1000);
+      gl.uniform1f(uIntensity, intensity);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     rafId = requestAnimationFrame(draw);
