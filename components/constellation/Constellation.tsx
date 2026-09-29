@@ -53,7 +53,7 @@ export function Constellation() {
       }
     };
 
-    // ── root override (hero period anchor) + pointer drift ──
+    // ── root override + pointer drift (H3) ──
     const period: HTMLElement | null =
       !reduce && isFine ? document.getElementById("hero-period") : null;
 
@@ -67,10 +67,11 @@ export function Constellation() {
         __constellationRootOverride?: { x: number; y: number } | null;
       };
 
-      // H3: handoff threshold tightened 0.6 → 0.35
       if (window.scrollY > window.innerHeight * 0.35) {
         if (overrideWasActive) {
-          engine!.startTrail();
+          // H6: snapshot the period's exact center as the trail's origin
+          const r = period.getBoundingClientRect();
+          engine!.startTrail({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
           overrideWasActive = false;
         }
         w.__constellationRootOverride = null;
@@ -81,8 +82,6 @@ export function Constellation() {
       const cx = r.left + r.width / 2;
       const cy = r.top + r.height / 2;
 
-      // pointer drift — max 80px, follows the pointer relative to a
-      // resting anchor at (center-x, 55%-y). Inertia handled by engine lerp.
       const dx = Math.max(-80, Math.min(80, (pointerX - window.innerWidth / 2) * 0.08));
       const dy = Math.max(-80, Math.min(80, (pointerY - window.innerHeight * 0.55) * 0.08));
 

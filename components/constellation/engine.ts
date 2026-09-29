@@ -40,9 +40,13 @@ export class ConstellationEngine {
     this.reducedMotion = v;
   }
 
-  startTrail() {
+  /**
+   * Kick off a fading trail from `from` (defaults to the root's current
+   * position). Called by the constellation on the hero → origin handoff.
+   */
+  startTrail(from?: { x: number; y: number }) {
     this.trail = {
-      from: { x: this.live[0]!.x, y: this.live[0]!.y },
+      from: from ?? { x: this.live[0]!.x, y: this.live[0]!.y },
       alpha: 0.4,
     };
   }
@@ -158,7 +162,7 @@ export class ConstellationEngine {
       ctx.fill();
     }
 
-    // trailing edge: line from where the root left the period to its current position
+    // Trail: line from the period's position to the root's current position.
     if (this.trail) {
       const a = this.trail.alpha;
       if (a > 0.01) {

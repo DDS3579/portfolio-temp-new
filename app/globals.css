@@ -856,3 +856,24 @@ body::before {
   #bloom-canvas { display: none; }
   .hero-label::before { animation: none; height: 14px; }
 }
+
+/* ============================================================
+   HERO UPGRADE (H5 + H6)
+   ============================================================ */
+
+/* H5: front-layer parallax wrapper.
+   Motion applies the transform; we just give the browser a hint
+   that it's about to change. */
+.hero-front {
+  display: block;
+  will-change: transform;
+}
+
+/* H6: trail is drawn on the constellation canvas — no DOM work needed.
+   But during the handoff, the hero's fog/bloom canvas fades via
+   lightState.intensity, which the Hero state machine drives. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-front {
+    will-change: auto;
+  }
+}
