@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { HeroFog } from "@/components/webgl/HeroFog";
+import { BloomCanvas } from "@/components/webgl/BloomCanvas";
 import { lightState } from "@/lib/light-state";
 import { site } from "@/content/site";
 
@@ -19,7 +20,6 @@ export function Hero() {
   const periodRef = useRef<HTMLSpanElement>(null);
   const [bloomPos, setBloomPos] = useState<{ x: number; y: number } | null>(null);
 
-  // measure the period's screen position for the bloom
   useEffect(() => {
     const measure = () => {
       const el = periodRef.current;
@@ -55,8 +55,9 @@ export function Hero() {
   return (
     <section className="hero wrap" id="hero" aria-labelledby="hero-title">
       <HeroFog />
+      <BloomCanvas />
 
-      {/* Bloom ring — expands from the period on ignition */}
+      {/* One-shot bloom ring — the ignition flash */}
       {bloomPos && (
         <motion.div
           className="bloom-ring"

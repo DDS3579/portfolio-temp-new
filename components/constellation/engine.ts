@@ -15,6 +15,8 @@ export class ConstellationEngine {
   private running = false;
   private reducedMotion = false;
 
+  private trail: { from: { x: number; y: number }; alpha: number } | null = null;
+
   light = { x: 0, y: 0 };
   onLightMove?: (x: number, y: number) => void;
 
@@ -36,6 +38,13 @@ export class ConstellationEngine {
 
   setReducedMotion(v: boolean) {
     this.reducedMotion = v;
+  }
+
+  startTrail() {
+    this.trail = {
+      from: { x: this.live[0]!.x, y: this.live[0]!.y },
+      alpha: 0.4,
+    };
   }
 
   resize() {
@@ -147,6 +156,23 @@ export class ConstellationEngine {
       ctx.beginPath();
       ctx.arc(n.x, n.y, 2.6, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // trailing edge: line from where the root left the period to its current position
+    if (this.trail) {
+      const a = this.trail.alpha;
+      if (a > 0.01) {
+        const n = this.live[0]!;
+        ctx.strokeStyle = "rgba(232, 176, 75, " + a + ")";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(this.trail.from.x, this.trail.from.y);
+        ctx.lineTo(n.x, n.y);
+        ctx.stroke();
+        this.trail.alpha = Math.max(0, a - 0.008 * dt);
+      } else {
+        this.trail = null;
+      }
     }
 
     if (this.target === "contact" && !this.reducedMotion) {

@@ -37,15 +37,12 @@ export function Constellation() {
       const w = window.innerWidth;
       const h = window.innerHeight;
 
-      // shared state for the WebGL fog (zero DOM reads in its hot path)
       lightState.x = x / w;
       lightState.y = y / h;
 
-      // CSS vars for .bg-fog and general use
       document.documentElement.style.setProperty("--lx", ((x / w) * 100) + "%");
       document.documentElement.style.setProperty("--ly", ((y / h) * 100) + "%");
 
-      // per-element lit surfaces
       const list = document.querySelectorAll<HTMLElement>(".lit");
       for (let i = 0; i < list.length; i++) {
         const el = list[i]!;
@@ -56,34 +53,63 @@ export function Constellation() {
       }
     };
 
-    // hero period anchor → root node sits on the period
-    if (!reduce && isFine) {
-      const period = document.getElementById("hero-period");
-      const setOverride = () => {
-        if (!period) return;
-        const r = period.getBoundingClientRect();
-        (window as unknown as { __constellationRootOverride?: { x: number; y: number } | null })
-          .__constellationRootOverride = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    // ── root override (hero period anchor) + pointer drift ──
+    const period: HTMLElement | null =
+      !reduce && isFine ? document.getElementById("hero-period") : null;
+
+    let pointerX = window.innerWidth / 2;
+    let pointerY = window.innerHeight * 0.55;
+    let overrideWasActive = false;
+
+    const updateOverride = () => {
+      if (!period) return;
+      const w = window as unknown as {
+        __constellationRootOverride?: { x: number; y: number } | null;
       };
-      setOverride();
-      const ro = new ResizeObserver(setOverride);
-      if (period) ro.observe(period);
-      window.addEventListener("resize", setOverride);
-      document.fonts?.ready.then(setOverride);
-      const onScrollClear = () => {
-        if (window.scrollY > window.innerHeight * 0.6) {
-          (window as unknown as { __constellationRootOverride?: unknown }).__constellationRootOverride = null;
-        } else {
-          setOverride();
+
+      // H3: handoff threshold tightened 0.6 → 0.35
+      if (window.scrollY > window.innerHeight * 0.35) {
+        if (overrideWasActive) {
+          engine!.startTrail();
+          overrideWasActive = false;
         }
-      };
-      window.addEventListener("scroll", onScrollClear, { passive: true });
-      window.setTimeout(() => {
-        (window as unknown as { __constellationRootOverride?: unknown }).__constellationRootOverride = null;
-      }, 200);
-      window.setTimeout(setOverride, 300);
+        w.__constellationRootOverride = null;
+        return;
+      }
+
+      const r = period.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+
+      // pointer drift — max 80px, follows the pointer relative to a
+      // resting anchor at (center-x, 55%-y). Inertia handled by engine lerp.
+      const dx = Math.max(-80, Math.min(80, (pointerX - window.innerWidth / 2) * 0.08));
+      const dy = Math.max(-80, Math.min(80, (pointerY - window.innerHeight * 0.55) * 0.08));
+
+      w.__constellationRootOverride = { x: cx + dx, y: cy + dy };
+      overrideWasActive = true;
+    };
+
+    if (period) {
+      const ro = new ResizeObserver(updateOverride);
+      ro.observe(period);
+      document.fonts?.ready.then(updateOverride);
+      setTimeout(updateOverride, 100);
+      setTimeout(updateOverride, 300);
+      updateOverride();
+      window.addEventListener("resize", updateOverride);
+      window.addEventListener(
+        "pointermove",
+        (e: PointerEvent) => {
+          pointerX = e.clientX;
+          pointerY = e.clientY;
+          updateOverride();
+        },
+        { passive: true }
+      );
     }
 
+    // ── state selection ──
     let queued = false;
     const computeState = () => {
       const vh = window.innerHeight;
@@ -122,6 +148,7 @@ export function Constellation() {
       requestAnimationFrame(() => {
         queued = false;
         computeState();
+        if (period) updateOverride();
       });
     };
 
